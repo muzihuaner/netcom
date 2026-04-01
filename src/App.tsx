@@ -25,8 +25,6 @@ interface NodeInfo {
   channel: string;
 }
 
-const CHANNELS = Array.from({ length: 16 }, (_, i) => (i + 1).toString());
-
 export default function App() {
   // --- State ---
   const [socket, setSocket] = useState<Socket | null>(null);
@@ -34,7 +32,7 @@ export default function App() {
   const [nodes, setNodes] = useState<NodeInfo[]>([]);
   const [myId] = useState(() => Math.random().toString(36).substring(7));
   const [myName, setMyName] = useState(() => `User_${myId}`);
-  const [currentChannel, setCurrentChannel] = useState("1");
+  const [currentChannel, setCurrentChannel] = useState("446.100");
   const [isPTTActive, setIsPTTActive] = useState(false);
   const [incomingCall, setIncomingCall] = useState<{ from: string; name: string } | null>(null);
   const [audioLevel, setAudioLevel] = useState(0);
@@ -43,11 +41,13 @@ export default function App() {
   const [isNameEditing, setIsNameEditing] = useState(false);
   const [pendingName, setPendingName] = useState("");
   const [channelStatus, setChannelStatus] = useState<Map<string, { busy: boolean; activeUsers: Array<{ id: string; name: string }> }>>(new Map());
+  const [customChannelInput, setCustomChannelInput] = useState("446.100");
   
   // --- Refs ---
   const audioContextRef = useRef<AudioContext | null>(null);
   const mediaStreamRef = useRef<MediaStream | null>(null);
   const processorRef = useRef<ScriptProcessorNode | null>(null);
+  const silentGainRef = useRef<GainNode | null>(null);
   const socketRef = useRef<Socket | null>(null);
   const audioQueueRef = useRef<Float32Array[]>([]);
   const playbackSourceRef = useRef<BufferSource | null>(null);
@@ -233,12 +233,14 @@ export default function App() {
 
   // --- Channel Management ---
   const changeChannel = (channel: string) => {
-    setCurrentChannel(channel);
-    socket?.emit("node:change-channel", channel);
-    socket?.emit("join-room", channel);
+    const sanitized = channel.trim();
+    if (!sanitized) return;
+    setCurrentChannel(sanitized);
+    socket?.emit("node:change-channel", sanitized);
+    socket?.emit("join-room", sanitized);
     
     // 检查目标频道是否繁忙，如果繁忙则播放提示音
-    const targetChannelStatus = channelStatus.get(channel);
+    const targetChannelStatus = channelStatus.get(sanitized);
     if (targetChannelStatus?.busy && !isPTTActive) {
       playBusyTone();
     }
@@ -250,7 +252,7 @@ export default function App() {
       // 延迟后为新频道的节点重新建立连接
       setTimeout(() => {
         nodes.forEach(node => {
-          if (node.channel === channel && node.id !== myId) {
+          if (node.channel === sanitized && node.id !== myId) {
             const remoteSocketId = node.socketId;
             if (!peerConnectionsRef.current.has(remoteSocketId)) {
               const config = {
@@ -304,13 +306,37 @@ export default function App() {
               
               pc.createOffer().then(offer => {
                 pc.setLocalDescription(offer);
-                socket?.emit("webrtc:offer", { to: remoteSocketId, offer });
+                  socket?.emit("webrtc:offer", { to: remoteSocketId, offer });
               }).catch(e => console.error("Error creating offer:", e));
             }
           }
         });
       }, 100);
     }
+  };
+
+  const normalizeFrequency = (value: string) => {
+    const numeric = parseFloat(value);
+    if (Number.isNaN(numeric) || !Number.isFinite(numeric)) {
+      return value.trim();
+    }
+    return numeric.toFixed(3);
+  };
+
+  const handleApplyFrequency = () => {
+    if (!customChannelInput.trim()) return;
+    const normalized = normalizeFrequency(customChannelInput);
+    setCustomChannelInput(normalized);
+    changeChannel(normalized);
+  };
+
+  const adjustFrequency = (delta: number) => {
+    const base = parseFloat(customChannelInput || currentChannel);
+    if (Number.isNaN(base)) return;
+    const next = Math.max(0.001, base + delta);
+    const formatted = next.toFixed(3);
+    setCustomChannelInput(formatted);
+    changeChannel(formatted);
   };
 
   // --- Audio Logic ---
@@ -409,7 +435,7 @@ export default function App() {
       processor.onaudioprocess = (event) => {
         const inputData = event.inputBuffer.getChannelData(0);
         // 每4096个样本作为一个音频包
-        const samples = Array.from(inputData);
+        const samples = Array.from(inputData as ArrayLike<number>);
         audioBuffer.push(new Float32Array(samples));
         
         // 每收集几个包就发送一次（用于备用方案）
@@ -424,7 +450,9 @@ export default function App() {
           // 通过 Socket.io 发送音频数据（备用方案）
           socket?.emit("ptt:audio", { 
             channel: currentChannel,
-            samples: Array.from(combinedSamples.slice(0, Math.min(4096, combinedSamples.length)))
+            samples: Array.from(
+              combinedSamples.slice(0, Math.min(4096, combinedSamples.length)) as ArrayLike<number>
+            )
           });
           audioBuffer = [];
         }
@@ -432,7 +460,15 @@ export default function App() {
       
       source.connect(analyzer);
       source.connect(processor);
-      processor.connect(audioCtx.destination);
+      if (silentGainRef.current) {
+        silentGainRef.current.disconnect();
+        silentGainRef.current = null;
+      }
+      const silentGain = audioCtx.createGain();
+      silentGain.gain.value = 0;
+      processor.connect(silentGain);
+      silentGain.connect(audioCtx.destination);
+      silentGainRef.current = silentGain;
       
       processorRef.current = processor;
       
@@ -540,6 +576,11 @@ export default function App() {
       processorRef.current.disconnect();
       processorRef.current = null;
     }
+
+    if (silentGainRef.current) {
+      silentGainRef.current.disconnect();
+      silentGainRef.current = null;
+    }
     
     // 关闭所有 WebRTC 连接
     closeAllPeerConnections();
@@ -612,6 +653,8 @@ export default function App() {
   }, [playAudioBuffer]);
 
   // --- UI Components ---
+  const displayFrequency = normalizeFrequency(currentChannel) || currentChannel;
+
   return (
     <div className="min-h-screen bg-[#1a1a1a] text-white font-mono flex flex-col items-center justify-center p-2 sm:p-4">
       {/* Device Frame */}
@@ -638,7 +681,7 @@ export default function App() {
               <div>
                 <h2 className="text-[#4ade80] text-xs uppercase tracking-tighter opacity-70">当前频率</h2>
                 <div className="text-[#4ade80] text-4xl font-bold tracking-widest">
-                  446.{currentChannel.padStart(3, "0")}
+                  {displayFrequency} MHz
                 </div>
               </div>
               <div className="bg-[#4ade80] text-[#0f140f] px-2 py-1 rounded text-[10px] font-bold">
@@ -665,7 +708,7 @@ export default function App() {
                         />
                       ))}
                     </div>
-                    <span className="text-[#4ade80] text-[10px] font-bold animate-pulse">正在发射...</span>
+                    <span className="text-[#4ade80] text-[10px] font-bold animate-pulse">正在发送...</span>
                   </motion.div>
                 ) : incomingCall ? (
                   <motion.div 
@@ -822,34 +865,47 @@ export default function App() {
           </div>
 
           {/* Channel Knob Simulation */}
-          <div className="flex items-center justify-between">
-            <button 
-              onClick={() => changeChannel(CHANNELS[(CHANNELS.indexOf(currentChannel) - 1 + 16) % 16])}
-              className="p-2 hover:bg-[#333] rounded-full transition-colors"
-            >
-              <ChevronLeft className="w-6 h-6" />
-            </button>
-            <div className="flex flex-col items-center gap-2">
-              <span className="text-[8px] uppercase tracking-[0.3em] opacity-30">频道选择</span>
-              <div className="text-2xl font-bold text-blue-400">{currentChannel}</div>
-              {/* 频道占用指示灯 */}
-              <div className="flex items-center gap-2">
+          <div className="flex flex-col gap-3">
+            <div className="flex items-center justify-between">
+              <span className="text-[8px] uppercase tracking-[0.3em] opacity-30">频率选择 (MHz)</span>
+              <div className="flex items-center gap-2 text-[10px] text-gray-400">
                 <div className={`w-2 h-2 rounded-full transition-all ${ 
                   channelStatus.get(currentChannel)?.busy 
                     ? "bg-red-500 shadow-[0_0_6px_rgba(239,68,68,0.8)] animate-pulse" 
                     : "bg-green-500"
                 }`} />
-                <span className="text-[8px] text-gray-400">
-                  {channelStatus.get(currentChannel)?.busy ? '繁忙' : '空闲'}
-                </span>
+                {channelStatus.get(currentChannel)?.busy ? '繁忙' : '空闲'}
               </div>
             </div>
-            <button 
-              onClick={() => changeChannel(CHANNELS[(CHANNELS.indexOf(currentChannel) + 1) % 16])}
-              className="p-2 hover:bg-[#333] rounded-full transition-colors"
-            >
-              <ChevronRight className="w-6 h-6" />
-            </button>
+            <div className="flex flex-col sm:flex-row gap-2">
+              <input
+                value={customChannelInput}
+                onChange={(e) => setCustomChannelInput(e.target.value)}
+                inputMode="decimal"
+                className="flex-1 bg-[#111] border border-[#333] rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                placeholder="例如 446.006"
+              />
+              <button
+                onClick={handleApplyFrequency}
+                className="px-4 py-2 bg-blue-600 rounded text-sm font-bold"
+              >
+                应用
+              </button>
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                onClick={() => adjustFrequency(-0.005)}
+                className="px-3 py-2 bg-[#333] rounded text-sm hover:bg-[#3d3d3d] transition-colors"
+              >
+                - 0.005 MHz
+              </button>
+              <button
+                onClick={() => adjustFrequency(0.005)}
+                className="px-3 py-2 bg-[#333] rounded text-sm hover:bg-[#3d3d3d] transition-colors"
+              >
+                + 0.005 MHz
+              </button>
+            </div>
           </div>
 
           {/* PTT Button */}
