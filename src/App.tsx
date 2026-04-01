@@ -613,12 +613,12 @@ export default function App() {
 
   // --- UI Components ---
   return (
-    <div className="min-h-screen bg-[#1a1a1a] text-white font-mono flex flex-col items-center justify-center p-4">
+    <div className="min-h-screen bg-[#1a1a1a] text-white font-mono flex flex-col items-center justify-center p-2 sm:p-4">
       {/* Device Frame */}
-      <div className="w-full max-w-md bg-[#2a2a2a] rounded-[3rem] border-8 border-[#333] shadow-2xl overflow-hidden flex flex-col relative aspect-[9/16]">
+      <div className="w-full max-w-md bg-[#2a2a2a] rounded-[2rem] sm:rounded-[3rem] border-4 sm:border-8 border-[#333] shadow-2xl flex flex-col relative overflow-y-auto sm:overflow-hidden min-h-[540px] sm:min-h-0 aspect-auto sm:aspect-[9/16]">
         
         {/* Top Status Bar */}
-        <div className="h-12 bg-[#222] flex items-center justify-between px-8 border-b border-[#333]">
+        <div className="h-12 bg-[#222] flex items-center justify-between px-4 sm:px-8 border-b border-[#333]">
           <div className="flex items-center gap-2">
             {connected ? <Wifi className="w-4 h-4 text-green-500" /> : <WifiOff className="w-4 h-4 text-red-500" />}
             <span className="text-[10px] uppercase tracking-widest opacity-50">
@@ -632,8 +632,8 @@ export default function App() {
         </div>
 
         {/* Main Display Screen */}
-        <div className="flex-1 p-6 flex flex-col gap-4">
-          <div className="bg-[#0f140f] rounded-2xl border-2 border-[#1a2a1a] p-4 flex flex-col gap-4 shadow-inner min-h-[200px]">
+        <div className="flex-1 p-4 sm:p-6 flex flex-col gap-4">
+          <div className="bg-[#0f140f] rounded-2xl border-2 border-[#1a2a1a] p-3 sm:p-4 flex flex-col gap-4 shadow-inner min-h-[180px] sm:min-h-[200px]">
             <div className="flex justify-between items-start">
               <div>
                 <h2 className="text-[#4ade80] text-xs uppercase tracking-tighter opacity-70">当前频率</h2>
@@ -720,7 +720,7 @@ export default function App() {
         </div>
 
         {/* Controls Section */}
-        <div className="bg-[#222] p-8 flex flex-col gap-8 border-t border-[#333]">
+        <div className="bg-[#222] p-4 sm:p-8 flex flex-col gap-6 sm:gap-8 border-t border-[#333]">
           <div className="flex flex-col gap-2">
             <div className="flex items-center justify-between text-[10px] uppercase tracking-widest opacity-50">
               <span className="flex items-center gap-1"><Settings className="w-3 h-3" /> 身份标识</span>
@@ -739,7 +739,7 @@ export default function App() {
               </button>
             </div>
             {isNameEditing ? (
-              <div className="flex gap-2">
+              <div className="flex gap-2 flex-col sm:flex-row">
                 <input
                   value={pendingName}
                   onChange={(e) => setPendingName(e.target.value)}
@@ -858,17 +858,29 @@ export default function App() {
               onMouseDown={startPTT}
               onMouseUp={stopPTT}
               onMouseLeave={stopPTT}
+              onTouchStart={(e) => {
+                e.preventDefault();
+                startPTT();
+              }}
+              onTouchEnd={(e) => {
+                e.preventDefault();
+                stopPTT();
+              }}
+              onTouchCancel={(e) => {
+                e.preventDefault();
+                stopPTT();
+              }}
               whileTap={{ scale: 0.95 }}
-              className={`w-32 h-32 rounded-full border-8 flex items-center justify-center transition-all duration-150 relative ${
+              className={`w-28 h-28 sm:w-32 sm:h-32 rounded-full border-8 flex items-center justify-center transition-all duration-150 relative ${
                 isPTTActive 
                   ? "bg-red-500 border-red-400 shadow-[0_0_40px_rgba(239,68,68,0.4)]" 
                   : "bg-[#333] border-[#444] shadow-lg"
               }`}
             >
-              {isPTTActive ? <Mic className="w-12 h-12" /> : <MicOff className="w-12 h-12 opacity-30" />}
+              {isPTTActive ? <Mic className="w-10 h-10 sm:w-12 sm:h-12" /> : <MicOff className="w-10 h-10 sm:w-12 sm:h-12 opacity-30" />}
               
               {/* PTT Label */}
-              <div className="absolute -bottom-6 text-[10px] font-bold uppercase tracking-widest opacity-50">
+              <div className="absolute -bottom-6 text-[9px] sm:text-[10px] font-bold uppercase tracking-widest opacity-50">
                 按键通话
               </div>
             </motion.button>
@@ -876,7 +888,7 @@ export default function App() {
         </div>
 
         {/* Bottom Speaker Grille */}
-        <div className="h-12 bg-[#1a1a1a] flex items-center justify-center gap-1">
+        <div className="h-10 sm:h-12 bg-[#1a1a1a] flex items-center justify-center gap-1">
           {[...Array(20)].map((_, i) => (
             <div key={i} className="w-1 h-1 bg-[#333] rounded-full" />
           ))}
