@@ -48,4 +48,4 @@ ENV PORT=3000
 ENTRYPOINT ["dumb-init", "--"]
 
 # 启动命令
-CMD ["node", "--loader", "tsx", "server.ts"]
+CMD ["node", "--import", "tsx", "server.ts"]
