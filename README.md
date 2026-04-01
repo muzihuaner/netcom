@@ -2,6 +2,7 @@
 ================================
 
 NetCom 是一个基于 WebRTC + WebSockets 的去中心化模拟对讲系统。用户在浏览器中即可体验频道切换、按键通话（PTT）与实时节点发现，模拟传统无线对讲机的交互体验。
+![netcom.quickso.cn_(Surface Duo).png](https://files.seeusercontent.com/2026/04/01/sI2t/netcomquicksocn_Surface-Duo.png)
 
 ## ✨ 功能亮点
 
