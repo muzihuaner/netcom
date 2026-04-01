@@ -14,7 +14,8 @@ async function startServer() {
     }
   });
 
-  const PORT = 3000;
+  const PORT = Number(process.env.PORT) || 3000;
+  const HOST = process.env.HOST || "0.0.0.0";
 
   // 模拟 MQTT 的节点发现机制
   // 存储在线节点: { socketId: { id, name, channel, ip } }
@@ -172,8 +173,8 @@ async function startServer() {
     });
   }
 
-  httpServer.listen(PORT, "localhost", () => {
-    console.log(`Intercom Server running on http://localhost:${PORT}`);
+  httpServer.listen(PORT, HOST, () => {
+    console.log(`Intercom Server running on http://${HOST}:${PORT}`);
   });
 }
 
