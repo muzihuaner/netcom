@@ -32,7 +32,7 @@ export default function App() {
   const [nodes, setNodes] = useState<NodeInfo[]>([]);
   const [myId] = useState(() => Math.random().toString(36).substring(7));
   const [myName, setMyName] = useState(() => `User_${myId}`);
-  const [currentChannel, setCurrentChannel] = useState("446.100");
+  const [currentChannel, setCurrentChannel] = useState("430.000");
   const [isPTTActive, setIsPTTActive] = useState(false);
   const [incomingCall, setIncomingCall] = useState<{ from: string; name: string } | null>(null);
   const [audioLevel, setAudioLevel] = useState(0);
@@ -41,7 +41,7 @@ export default function App() {
   const [isNameEditing, setIsNameEditing] = useState(false);
   const [pendingName, setPendingName] = useState("");
   const [channelStatus, setChannelStatus] = useState<Map<string, { busy: boolean; activeUsers: Array<{ id: string; name: string }> }>>(new Map());
-  const [customChannelInput, setCustomChannelInput] = useState("446.100");
+  const [customChannelInput, setCustomChannelInput] = useState("430.000");
   
   // --- Refs ---
   const audioContextRef = useRef<AudioContext | null>(null);
@@ -325,15 +325,19 @@ export default function App() {
 
   const handleApplyFrequency = () => {
     if (!customChannelInput.trim()) return;
-    const normalized = normalizeFrequency(customChannelInput);
-    setCustomChannelInput(normalized);
-    changeChannel(normalized);
+    const numeric = parseFloat(customChannelInput);
+    if (!Number.isNaN(numeric) && Number.isFinite(numeric)) {
+      const clamped = Math.min(440, Math.max(430, numeric));
+      const normalized = clamped.toFixed(3);
+      setCustomChannelInput(normalized);
+      changeChannel(normalized);
+    }
   };
 
   const adjustFrequency = (delta: number) => {
     const base = parseFloat(customChannelInput || currentChannel);
     if (Number.isNaN(base)) return;
-    const next = Math.max(0.001, base + delta);
+    const next = Math.min(440, Math.max(430, base + delta));
     const formatted = next.toFixed(3);
     setCustomChannelInput(formatted);
     changeChannel(formatted);
@@ -867,7 +871,7 @@ export default function App() {
           {/* Channel Knob Simulation */}
           <div className="flex flex-col gap-3">
             <div className="flex items-center justify-between">
-              <span className="text-[8px] uppercase tracking-[0.3em] opacity-30">频率选择 (MHz)</span>
+              <span className="text-[8px] uppercase tracking-[0.3em] opacity-30">频率选择 430~440 (MHz)</span>
               <div className="flex items-center gap-2 text-[10px] text-gray-400">
                 <div className={`w-2 h-2 rounded-full transition-all ${ 
                   channelStatus.get(currentChannel)?.busy 
@@ -883,7 +887,7 @@ export default function App() {
                 onChange={(e) => setCustomChannelInput(e.target.value)}
                 inputMode="decimal"
                 className="flex-1 bg-[#111] border border-[#333] rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                placeholder="例如 446.006"
+                placeholder="430.000 ~ 440.000"
               />
               <button
                 onClick={handleApplyFrequency}
